@@ -137,7 +137,7 @@ export default function App() {
   const [network, setNetwork] = useState<'ethereum' | 'solana'>('ethereum');
   const [isWalletConnecting, setIsWalletConnecting] = useState(false);
   const [isSolanaWalletConnecting, setIsSolanaWalletConnecting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'wallet'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'wallet' | 'swap'>('dashboard');
   const [transactions, setTransactions] = useState<any[]>([]);
 
   useEffect(() => {
@@ -1016,6 +1016,16 @@ export default function App() {
                 Dashboard
               </button>
               <button 
+                onClick={() => setActiveTab('swap')}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all",
+                  activeTab === 'swap' ? "bg-emerald-500 text-black shadow-lg shadow-emerald-500/20" : "text-zinc-500 hover:text-zinc-300"
+                )}
+              >
+                <RefreshCw className="w-4 h-4" />
+                Swap
+              </button>
+              <button 
                 onClick={() => setActiveTab('wallet')}
                 className={cn(
                   "flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all",
@@ -1048,7 +1058,7 @@ export default function App() {
 
       {/* Mobile Bottom Navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-xl border-t border-white/5 z-40 safe-bottom">
-        <div className="grid grid-cols-3 h-16">
+        <div className="grid grid-cols-4 h-16">
           <button 
             onClick={() => setActiveTab('dashboard')}
             className={cn(
@@ -1058,6 +1068,16 @@ export default function App() {
           >
             <LayoutDashboard className="w-5 h-5" />
             <span className="text-[10px] font-bold uppercase tracking-widest">Home</span>
+          </button>
+          <button 
+            onClick={() => setActiveTab('swap')}
+            className={cn(
+              "flex flex-col items-center justify-center gap-1 transition-all",
+              activeTab === 'swap' ? "text-emerald-500" : "text-zinc-500"
+            )}
+          >
+            <RefreshCw className="w-5 h-5" />
+            <span className="text-[10px] font-bold uppercase tracking-widest">Swap</span>
           </button>
           <button 
             onClick={() => setIsModalOpen(true)}
@@ -1082,7 +1102,7 @@ export default function App() {
       </nav>
 
       <main className="max-w-7xl mx-auto px-6 py-8">
-        {activeTab === 'dashboard' ? (
+        {activeTab === 'dashboard' && (
           <>
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -1378,7 +1398,9 @@ export default function App() {
               </AnimatePresence>
             </div>
           </>
-        ) : (
+        )}
+        
+        {activeTab === 'wallet' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Wallet Info Card */}
             <div className="lg:col-span-1 space-y-6">
@@ -1745,6 +1767,209 @@ export default function App() {
                 </div>
               </motion.div>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'swap' && (
+          <div className="max-w-xl mx-auto">
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-zinc-900 border border-white/10 rounded-3xl p-8 shadow-xl relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 p-8 opacity-5">
+                <RefreshCw className="w-48 h-48" />
+              </div>
+              
+              <div className="relative z-10">
+                <div className="flex items-center justify-between mb-8">
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "w-12 h-12 rounded-xl flex items-center justify-center shadow-lg",
+                      network === 'ethereum' ? "bg-blue-500/10 text-blue-500 shadow-blue-500/20" : "bg-purple-500/10 text-purple-500 shadow-purple-500/20"
+                    )}>
+                      <RefreshCw className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold tracking-tight">Token Swap</h2>
+                      <p className="text-zinc-500 text-sm">Trade tokens instantly on {network === 'ethereum' ? 'Ethereum' : 'Solana'}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/5">
+                    <button 
+                      onClick={() => setNetwork('ethereum')}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-widest transition-all",
+                        network === 'ethereum' ? "bg-blue-500 text-white shadow-lg shadow-blue-500/20" : "text-zinc-500 hover:text-zinc-300"
+                      )}
+                    >
+                      ETH
+                    </button>
+                    <button 
+                      onClick={() => setNetwork('solana')}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-widest transition-all",
+                        network === 'solana' ? "bg-purple-500 text-white shadow-lg shadow-purple-500/20" : "text-zinc-500 hover:text-zinc-300"
+                      )}
+                    >
+                      SOL
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {/* From Token */}
+                  <div className="bg-black/40 border border-white/5 rounded-2xl p-4">
+                    <div className="flex justify-between mb-2">
+                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">You Pay</label>
+                      <span className="text-xs text-zinc-500">
+                        Balance: {network === 'ethereum' 
+                          ? (walletBalance ? parseFloat(walletBalance).toFixed(4) : '0.00') 
+                          : (solanaBalance ? parseFloat(solanaBalance).toFixed(4) : '0.00')} {network === 'ethereum' ? 'ETH' : 'SOL'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <input 
+                        type="number" 
+                        placeholder="0.0"
+                        className="w-full bg-transparent text-3xl font-bold focus:outline-none placeholder:text-zinc-700"
+                      />
+                      <button className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl transition-colors shrink-0">
+                        <div className={cn(
+                          "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold",
+                          network === 'ethereum' ? "bg-blue-500 text-white" : "bg-purple-500 text-white"
+                        )}>
+                          {network === 'ethereum' ? 'Ξ' : 'S'}
+                        </div>
+                        <span className="font-bold">{network === 'ethereum' ? 'ETH' : 'SOL'}</span>
+                        <ChevronRight className="w-4 h-4 text-zinc-400" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Swap Icon */}
+                  <div className="flex justify-center -my-2 relative z-10">
+                    <button className="bg-zinc-800 border-4 border-zinc-900 p-2 rounded-xl hover:bg-zinc-700 transition-colors text-zinc-400 hover:text-white">
+                      <ArrowDownLeft className="w-5 h-5 rotate-45" />
+                    </button>
+                  </div>
+
+                  {/* To Token */}
+                  <div className="bg-black/40 border border-white/5 rounded-2xl p-4">
+                    <div className="flex justify-between mb-2">
+                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">You Receive</label>
+                      <span className="text-xs text-zinc-500">Balance: 0.00</span>
+                    </div>
+                    <div className="flex items-center gap-4 mb-4">
+                      <input 
+                        type="number" 
+                        placeholder="0.0"
+                        readOnly
+                        className="w-full bg-transparent text-3xl font-bold focus:outline-none placeholder:text-zinc-700 text-zinc-500"
+                      />
+                      <button className="flex items-center gap-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-500 px-4 py-2 rounded-xl transition-colors shrink-0">
+                        <span className="font-bold">Select Token</span>
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                    
+                    <div className="pt-4 border-t border-white/5">
+                      <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Token Address / Symbol</label>
+                      <input 
+                        type="text" 
+                        placeholder={network === 'ethereum' ? "0x... or USDT" : "Mint Address or BONK"}
+                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Transaction Speed (Solana Only) */}
+                  {network === 'solana' && (
+                    <div className="bg-black/40 border border-white/5 rounded-2xl p-4">
+                      <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">Transaction Speed</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {['medium', 'fast', 'ultra'].map((speed) => (
+                          <button
+                            key={speed}
+                            onClick={() => setTxSpeed(speed as any)}
+                            className={cn(
+                              "py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all border",
+                              txSpeed === speed 
+                                ? "bg-purple-500/20 border-purple-500/50 text-purple-400" 
+                                : "bg-white/5 border-white/5 text-zinc-500 hover:bg-white/10"
+                            )}
+                          >
+                            {speed}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  {network === 'solana' ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      <button 
+                        disabled={!solanaAddress}
+                        className={cn(
+                          "w-full py-4 rounded-2xl text-sm font-bold transition-all active:scale-95 shadow-lg flex items-center justify-center gap-2",
+                          solanaAddress
+                            ? "bg-emerald-500 hover:bg-emerald-400 text-black shadow-emerald-500/20"
+                            : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                        )}
+                      >
+                        {solanaAddress ? (
+                          <>
+                            <ArrowDownLeft className="w-5 h-5" />
+                            Buy Token
+                          </>
+                        ) : (
+                          'Connect Wallet'
+                        )}
+                      </button>
+                      <button 
+                        disabled={!solanaAddress}
+                        className={cn(
+                          "w-full py-4 rounded-2xl text-sm font-bold transition-all active:scale-95 shadow-lg flex items-center justify-center gap-2",
+                          solanaAddress
+                            ? "bg-red-500 hover:bg-red-400 text-white shadow-red-500/20"
+                            : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                        )}
+                      >
+                        {solanaAddress ? (
+                          <>
+                            <ArrowUpRight className="w-5 h-5" />
+                            Sell Token
+                          </>
+                        ) : (
+                          'Connect Wallet'
+                        )}
+                      </button>
+                    </div>
+                  ) : (
+                    <button 
+                      disabled={!walletAddress}
+                      className={cn(
+                        "w-full py-4 rounded-2xl text-sm font-bold transition-all active:scale-95 shadow-lg flex items-center justify-center gap-2",
+                        walletAddress
+                          ? "bg-blue-500 hover:bg-blue-400 text-white shadow-blue-500/20"
+                          : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                      )}
+                    >
+                      {walletAddress ? (
+                        <>
+                          <RefreshCw className="w-5 h-5" />
+                          Execute Swap
+                        </>
+                      ) : (
+                        'Connect Wallet to Swap'
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </motion.div>
           </div>
         )}
       </main>
