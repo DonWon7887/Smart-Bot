@@ -1,4 +1,4 @@
-import { TradingBot, SocialBot, MonitorBot } from './bots/implementations';
+import { TradingBot, SocialBot, MonitorBot, WhaleWatcherBot } from './bots/implementations';
 import db from './db';
 import { Server as SocketServer } from 'socket.io';
 
@@ -55,6 +55,9 @@ export class BotManager {
         break;
       case 'monitor':
         bot = new MonitorBot(botData.id, botData.name, config, onDecision, !!botData.frozen);
+        break;
+      case 'whale_watcher':
+        bot = new WhaleWatcherBot(botData.id, botData.name, config, onDecision, !!botData.frozen);
         break;
       default:
         return;

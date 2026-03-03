@@ -6,8 +6,23 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
+@utility text-gold-stroke {
+  color: #FBBF24;
+  text-shadow: 
+    -1px -1px 0 #000,  
+     1px -1px 0 #000,
+    -1px  1px 0 #000,
+     1px  1px 0 #000,
+     0px  2px 4px rgba(0,0,0,0.5);
+}
+
+@utility box-stroke {
+  border: 2px solid #000;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+}
+
 body {
-  @apply bg-white text-zinc-900 antialiased transition-colors duration-300;
+  @apply bg-purple-900 text-yellow-400 antialiased transition-colors duration-300;
   /* Prevent scrolling on iOS when modal is open */
   -webkit-overflow-scrolling: touch;
 }
@@ -33,60 +48,60 @@ body {
 }
 
 .dark body {
-  @apply bg-[#0A0A0B] text-zinc-100;
+  @apply bg-purple-950 text-yellow-400;
 }
 
 .glass {
-  @apply bg-white/5 backdrop-blur-xl border border-white/10;
+  @apply bg-purple-800/50 backdrop-blur-xl border-2 border-black;
 }
 
 /* Theme-aware utility overrides for rapid implementation */
-.dark .bg-zinc-900 { @apply bg-zinc-900; }
-.dark .bg-zinc-900\/50 { @apply bg-zinc-900/50; }
+.dark .bg-zinc-900 { @apply bg-purple-900; }
+.dark .bg-zinc-900\/50 { @apply bg-purple-900/50; }
 .dark .bg-black\/40 { @apply bg-black/40; }
 .dark .bg-black\/20 { @apply bg-black/20; }
 .dark .bg-black\/10 { @apply bg-black/10; }
-.dark .border-white\/10 { @apply border-white/10; }
-.dark .border-white\/5 { @apply border-white/5; }
-.dark .text-zinc-100 { @apply text-zinc-100; }
-.dark .text-zinc-500 { @apply text-zinc-500; }
+.dark .border-white\/10 { @apply border-black border-2; }
+.dark .border-white\/5 { @apply border-black border-2; }
+.dark .text-zinc-100 { @apply text-gold-stroke; }
+.dark .text-zinc-500 { @apply text-yellow-200 text-gold-stroke; }
 
 /* Light mode overrides for existing dark-themed classes */
 html:not(.dark) .bg-zinc-900,
 html:not(.dark) .bg-zinc-900\/50 {
-  @apply bg-zinc-100;
+  @apply bg-purple-800;
 }
 
 html:not(.dark) .bg-black\/40,
 html:not(.dark) .bg-black\/20,
 html:not(.dark) .bg-black\/10,
 html:not(.dark) .bg-black\/80 {
-  @apply bg-zinc-200/50;
+  @apply bg-purple-900/50;
 }
 
 html:not(.dark) .border-white\/10,
 html:not(.dark) .border-white\/5 {
-  @apply border-zinc-200;
+  @apply border-black border-2;
 }
 
 html:not(.dark) .text-zinc-100,
 html:not(.dark) .text-white {
-  @apply text-zinc-900;
+  @apply text-gold-stroke;
 }
 
 html:not(.dark) .text-zinc-500,
 html:not(.dark) .text-zinc-400 {
-  @apply text-zinc-500;
+  @apply text-yellow-200 text-gold-stroke;
 }
 
 html:not(.dark) .text-zinc-100 {
-  @apply text-zinc-900;
+  @apply text-gold-stroke;
 }
 
 html:not(.dark) .bg-zinc-900 {
-  @apply bg-zinc-100;
+  @apply bg-purple-800;
 }
 
 html:not(.dark) .bg-zinc-900\/50 {
-  @apply bg-zinc-50;
+  @apply bg-purple-800/50;
 }

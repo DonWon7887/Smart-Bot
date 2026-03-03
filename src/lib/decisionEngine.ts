@@ -47,7 +47,7 @@ export class DecisionEngine {
 
       const response = await this.ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: [{ parts: [{ text: prompt }] }],
+        contents: prompt,
         config: {
           responseMimeType: "application/json"
         }

@@ -196,3 +196,48 @@ export class MonitorBot extends BaseBot {
     return { success: true, action: decision.action, message: `Monitor action: ${decision.action}` };
   }
 }
+
+export class WhaleWatcherBot extends BaseBot {
+  private watchedWallets = ['0xWhale1...', '0xWhale2...'];
+  private targetToken = 'PRESALE_TOKEN';
+  private hasDumped = false;
+
+  getBotType() {
+    return 'whale_watcher';
+  }
+
+  getState() {
+    return {
+      ...super.getState(),
+      watched_wallets: this.watchedWallets,
+      target_token: this.targetToken,
+      whale_status: this.hasDumped ? 'DUMPED' : 'HOLDING'
+    };
+  }
+
+  async collectData() {
+    // Simulate checking whale wallets
+    const isDumping = Math.random() > 0.95; // 5% chance to simulate a dump
+    if (isDumping) this.hasDumped = true;
+
+    return {
+      whale_status: this.hasDumped ? 'DUMPED' : 'HOLDING',
+      whale_balance_change: this.hasDumped ? -100 : 0
+    };
+  }
+
+  async executeDecision(decision: Decision) {
+    if (decision.action === 'sell' || this.hasDumped) {
+      return { 
+        success: true, 
+        action: 'sell', 
+        message: 'EMERGENCY SELL: Top whale dumped 100% of holdings!' 
+      };
+    }
+    return { 
+      success: true, 
+      action: 'hold', 
+      message: 'Whales are holding. Monitoring...' 
+    };
+  }
+}

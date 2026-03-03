@@ -26,7 +26,8 @@ import {
   QrCode,
   LayoutDashboard,
   Moon,
-  Sun
+  Sun,
+  Globe
 } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import { motion, AnimatePresence } from 'motion/react';
@@ -36,7 +37,7 @@ import {
   useWallet, 
   useConnection 
 } from '@solana/wallet-adapter-react';
-import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import { WalletMultiButton, useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { 
   LineChart, 
   Line, 
@@ -61,10 +62,18 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+interface CustomNetwork {
+  id: string;
+  name: string;
+  rpcUrl: string;
+  chainId: number;
+  symbol: string;
+}
+
 interface BotData {
   id: string;
   name: string;
-  type: 'trading' | 'social' | 'monitor';
+  type: 'trading' | 'social' | 'monitor' | 'whale_watcher';
   status: 'running' | 'stopped';
   frozen: boolean;
   config: any;
@@ -134,8 +143,13 @@ export default function App() {
   const [solanaAddress, setSolanaAddress] = useState<string | null>(null);
   const [solanaBalance, setSolanaBalance] = useState<string | null>(null);
   const [solanaTransactions, setSolanaTransactions] = useState<any[]>([]);
-  const [network, setNetwork] = useState<'ethereum' | 'solana'>('ethereum');
+  const [network, setNetwork] = useState<string>('ethereum');
+  const [selectedEVMChain, setSelectedEVMChain] = useState<string>('ethereum');
+  const [customNetworks, setCustomNetworks] = useState<CustomNetwork[]>([]);
+  const [isAddNetworkModalOpen, setIsAddNetworkModalOpen] = useState(false);
+  const [newNetwork, setNewNetwork] = useState<Partial<CustomNetwork>>({});
   const [isWalletConnecting, setIsWalletConnecting] = useState(false);
+  const [showMetaMaskPrompt, setShowMetaMaskPrompt] = useState(false);
   const [isSolanaWalletConnecting, setIsSolanaWalletConnecting] = useState(false);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'wallet' | 'swap'>('dashboard');
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -231,8 +245,8 @@ export default function App() {
             state: newState,
             metrics: {
               ...bot.metrics,
-              total_decisions: bot.metrics.total_decisions + 1,
-              last_decisions: [data, ...bot.metrics.last_decisions].slice(0, 10)
+              total_decisions: (bot.metrics?.total_decisions || 0) + 1,
+              last_decisions: [data, ...(bot.metrics?.last_decisions || [])].slice(0, 10)
             }
           };
         }
@@ -482,10 +496,11 @@ export default function App() {
 
   const connectWallet = async () => {
     if (typeof window.ethereum === 'undefined') {
-      alert('Please install MetaMask or another crypto wallet extension.');
+      setShowMetaMaskPrompt(true);
       return null;
     }
 
+    setShowMetaMaskPrompt(false);
     setIsWalletConnecting(true);
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
@@ -766,7 +781,7 @@ export default function App() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center">
+      <div className="min-h-screen bg-purple-950 flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -774,23 +789,23 @@ export default function App() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center p-6">
+      <div className="min-h-screen bg-purple-950 flex items-center justify-center p-6">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md bg-zinc-900 border border-white/10 rounded-3xl p-8 shadow-2xl"
+          className="w-full max-w-md bg-purple-900 box-stroke rounded-3xl p-8"
         >
           <div className="flex flex-col items-center mb-8">
-            <div className="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center mb-4 shadow-lg shadow-emerald-500/20">
+            <div className="w-12 h-12 bg-yellow-400 box-stroke rounded-xl flex items-center justify-center mb-4">
               <Bot className="w-8 h-8 text-black" />
             </div>
-            <h1 className="text-2xl font-bold tracking-tight">
+            <h1 className="text-2xl font-bold tracking-tight text-gold-stroke">
               {authMode === 'login' ? 'Welcome Back' : 
                authMode === 'forgot-password' ? 'Reset Password' :
                authMode === 'forgot-username' ? 'Find Username' :
                authMode === 'reset-password' ? 'Enter OTP' : 'Two-Factor Auth'}
             </h1>
-            <p className="text-zinc-500 text-sm">
+            <p className="text-yellow-200 text-gold-stroke text-sm mt-2">
               {authMode === 'login' ? 'Sign in to manage your AI agents' : 
                authMode === 'verify-2fa' ? 'Enter the code from your authenticator app' : 'Follow the steps to recover your account'}
             </p>
@@ -805,7 +820,7 @@ export default function App() {
                   <input 
                     type="text" 
                     required
-                    className="w-full bg-black/40 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                    className="w-full bg-black/40 box-stroke rounded-xl pl-12 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400/50 transition-all"
                     value={loginForm.username}
                     onChange={e => setLoginForm({ ...loginForm, username: e.target.value })}
                   />
@@ -818,7 +833,7 @@ export default function App() {
                   <input 
                     type="password" 
                     required
-                    className="w-full bg-black/40 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                    className="w-full bg-black/40 box-stroke rounded-xl pl-12 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400/50 transition-all"
                     value={loginForm.password}
                     onChange={e => setLoginForm({ ...loginForm, password: e.target.value })}
                   />
@@ -848,7 +863,7 @@ export default function App() {
               )}
               <button 
                 type="submit"
-                className="w-full bg-emerald-500 hover:bg-emerald-400 text-black px-4 py-3 rounded-xl text-sm font-bold transition-all active:scale-95 shadow-lg shadow-emerald-500/20"
+                className="w-full bg-yellow-400 hover:bg-yellow-300 text-black px-4 py-3 rounded-xl text-sm font-bold transition-all active:scale-95 box-stroke"
               >
                 Sign In
               </button>
@@ -866,7 +881,7 @@ export default function App() {
                     required
                     placeholder="000000"
                     maxLength={6}
-                    className="w-full bg-black/40 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-sm font-mono tracking-[0.5em] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                    className="w-full bg-black/40 box-stroke rounded-xl pl-12 pr-4 py-3 text-sm font-mono tracking-[0.5em] focus:outline-none focus:ring-2 focus:ring-yellow-400/50 transition-all"
                     value={twoFactorCode}
                     onChange={e => setTwoFactorCode(e.target.value)}
                   />
@@ -880,7 +895,7 @@ export default function App() {
               )}
               <button 
                 type="submit"
-                className="w-full bg-emerald-500 hover:bg-emerald-400 text-black px-4 py-3 rounded-xl text-sm font-bold transition-all active:scale-95 shadow-lg shadow-emerald-500/20"
+                className="w-full bg-yellow-400 hover:bg-yellow-300 text-black px-4 py-3 rounded-xl text-sm font-bold transition-all active:scale-95 box-stroke"
               >
                 Verify & Login
               </button>
@@ -903,7 +918,7 @@ export default function App() {
                   <input 
                     type="email" 
                     required
-                    className="w-full bg-black/40 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                    className="w-full bg-black/40 box-stroke rounded-xl pl-12 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400/50 transition-all"
                     value={retrievalEmail}
                     onChange={e => setRetrievalEmail(e.target.value)}
                   />
@@ -911,7 +926,7 @@ export default function App() {
               </div>
               <button 
                 type="submit"
-                className="w-full bg-emerald-500 hover:bg-emerald-400 text-black px-4 py-3 rounded-xl text-sm font-bold transition-all active:scale-95 shadow-lg shadow-emerald-500/20"
+                className="w-full bg-yellow-400 hover:bg-yellow-300 text-black px-4 py-3 rounded-xl text-sm font-bold transition-all active:scale-95 box-stroke"
               >
                 {authMode === 'forgot-password' ? 'Send Reset OTP' : 'Send Username'}
               </button>
@@ -934,7 +949,7 @@ export default function App() {
                   <input 
                     type="text" 
                     required
-                    className="w-full bg-black/40 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                    className="w-full bg-black/40 box-stroke rounded-xl pl-12 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400/50 transition-all"
                     value={resetData.otp}
                     onChange={e => setResetData({ ...resetData, otp: e.target.value })}
                   />
@@ -947,7 +962,7 @@ export default function App() {
                   <input 
                     type="password" 
                     required
-                    className="w-full bg-black/40 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                    className="w-full bg-black/40 box-stroke rounded-xl pl-12 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400/50 transition-all"
                     value={resetData.newPassword}
                     onChange={e => setResetData({ ...resetData, newPassword: e.target.value })}
                   />
@@ -955,7 +970,7 @@ export default function App() {
               </div>
               <button 
                 type="submit"
-                className="w-full bg-emerald-500 hover:bg-emerald-400 text-black px-4 py-3 rounded-xl text-sm font-bold transition-all active:scale-95 shadow-lg shadow-emerald-500/20"
+                className="w-full bg-yellow-400 hover:bg-yellow-300 text-black px-4 py-3 rounded-xl text-sm font-bold transition-all active:scale-95 box-stroke"
               >
                 Reset Password
               </button>
@@ -971,7 +986,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0A0B] text-zinc-100 font-sans selection:bg-emerald-500/30 pb-20 md:pb-0">
+    <div className="min-h-screen bg-purple-950 text-yellow-400 font-sans selection:bg-yellow-400/30 pb-20 md:pb-0">
       {/* Header */}
       <header className="border-b border-white/5 bg-black/20 backdrop-blur-xl sticky top-0 z-40 safe-top">
         <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
@@ -1109,7 +1124,7 @@ export default function App() {
               {[
                 { label: 'Active Bots', value: `${analytics?.active_bots || 0}/${analytics?.total_bots || 0}`, icon: Activity, color: 'text-emerald-500' },
                 { label: 'Total Decisions', value: analytics?.total_decisions || 0, icon: Cpu, color: 'text-blue-500' },
-                { label: 'Wallet Balance', value: walletAddress ? `${parseFloat(walletBalance || '0').toFixed(4)} ETH` : 'Connect Wallet', icon: Wallet, color: 'text-orange-500', action: !walletAddress ? connectWallet : () => setActiveTab('wallet') },
+                { label: 'Wallet Balance', value: network === 'ethereum' ? (walletAddress ? `${parseFloat(walletBalance || '0').toFixed(4)} ETH` : 'Connect Wallet') : (solanaAddress ? `${parseFloat(solanaBalance || '0').toFixed(4)} SOL` : 'Connect Wallet'), icon: Wallet, color: 'text-orange-500', action: () => setActiveTab('wallet') },
                 { label: 'System Uptime', value: '99.9%', icon: RefreshCw, color: 'text-purple-500' }
               ].map((stat, i) => (
                 <motion.div 
@@ -1578,6 +1593,25 @@ export default function App() {
                 </p>
               </div>
 
+              {network === 'ethereum' && (
+                <div className="bg-zinc-900/50 border border-white/5 rounded-3xl p-6">
+                  <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-emerald-500" />
+                    Custom Networks
+                  </h3>
+                  <p className="text-xs text-zinc-500 leading-relaxed mb-4">
+                    Add custom EVM-compatible networks to use for swapping and transactions.
+                  </p>
+                  <button
+                    onClick={() => setIsAddNetworkModalOpen(true)}
+                    className="w-full bg-white/5 hover:bg-white/10 text-white px-4 py-3 rounded-xl text-xs font-bold transition-all active:scale-95 border border-white/10 flex items-center justify-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Custom Network
+                  </button>
+                </div>
+              )}
+
               {network === 'solana' && solanaAddress && (
                 <motion.div 
                   initial={{ opacity: 0, y: 20 }}
@@ -1819,6 +1853,22 @@ export default function App() {
                 </div>
 
                 <div className="space-y-4">
+                  {network === 'ethereum' && customNetworks.length > 0 && (
+                    <div className="bg-black/40 border border-white/5 rounded-2xl p-4">
+                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest block mb-2">Select Network</label>
+                      <select 
+                        value={selectedEVMChain}
+                        onChange={(e) => setSelectedEVMChain(e.target.value)}
+                        className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-all text-white"
+                      >
+                        <option value="ethereum">Ethereum Mainnet</option>
+                        {customNetworks.map(net => (
+                          <option key={net.id} value={net.id}>{net.name} ({net.symbol})</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   {/* From Token */}
                   <div className="bg-black/40 border border-white/5 rounded-2xl p-4">
                     <div className="flex justify-between mb-2">
@@ -1826,7 +1876,7 @@ export default function App() {
                       <span className="text-xs text-zinc-500">
                         Balance: {network === 'ethereum' 
                           ? (walletBalance ? parseFloat(walletBalance).toFixed(4) : '0.00') 
-                          : (solanaBalance ? parseFloat(solanaBalance).toFixed(4) : '0.00')} {network === 'ethereum' ? 'ETH' : 'SOL'}
+                          : (solanaBalance ? parseFloat(solanaBalance).toFixed(4) : '0.00')} {network === 'ethereum' ? (selectedEVMChain === 'ethereum' ? 'ETH' : customNetworks.find(n => n.id === selectedEVMChain)?.symbol || 'ETH') : 'SOL'}
                       </span>
                     </div>
                     <div className="flex items-center gap-4">
@@ -1840,9 +1890,9 @@ export default function App() {
                           "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold",
                           network === 'ethereum' ? "bg-blue-500 text-white" : "bg-purple-500 text-white"
                         )}>
-                          {network === 'ethereum' ? 'Ξ' : 'S'}
+                          {network === 'ethereum' ? (selectedEVMChain === 'ethereum' ? 'Ξ' : (customNetworks.find(n => n.id === selectedEVMChain)?.symbol?.[0] || 'Ξ')) : 'S'}
                         </div>
-                        <span className="font-bold">{network === 'ethereum' ? 'ETH' : 'SOL'}</span>
+                        <span className="font-bold">{network === 'ethereum' ? (selectedEVMChain === 'ethereum' ? 'ETH' : customNetworks.find(n => n.id === selectedEVMChain)?.symbol || 'ETH') : 'SOL'}</span>
                         <ChevronRight className="w-4 h-4 text-zinc-400" />
                       </button>
                     </div>
@@ -1909,52 +1959,34 @@ export default function App() {
 
                   {/* Action Buttons */}
                   {network === 'solana' ? (
-                    <div className="grid grid-cols-2 gap-3">
-                      <button 
-                        disabled={!solanaAddress}
-                        className={cn(
-                          "w-full py-4 rounded-2xl text-sm font-bold transition-all active:scale-95 shadow-lg flex items-center justify-center gap-2",
-                          solanaAddress
-                            ? "bg-emerald-500 hover:bg-emerald-400 text-black shadow-emerald-500/20"
-                            : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
-                        )}
-                      >
-                        {solanaAddress ? (
-                          <>
+                    <div className="w-full">
+                      {!solanaAddress ? (
+                        <WalletMultiButton className="!w-full !bg-zinc-800 hover:!bg-zinc-700 !text-white !py-4 !rounded-2xl !text-sm !font-bold !transition-all !active:scale-95 !flex !items-center !justify-center !h-auto !line-height-normal" />
+                      ) : (
+                        <div className="grid grid-cols-2 gap-3">
+                          <button 
+                            className="w-full py-4 rounded-2xl text-sm font-bold transition-all active:scale-95 shadow-lg flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-black shadow-emerald-500/20"
+                          >
                             <ArrowDownLeft className="w-5 h-5" />
                             Buy Token
-                          </>
-                        ) : (
-                          'Connect Wallet'
-                        )}
-                      </button>
-                      <button 
-                        disabled={!solanaAddress}
-                        className={cn(
-                          "w-full py-4 rounded-2xl text-sm font-bold transition-all active:scale-95 shadow-lg flex items-center justify-center gap-2",
-                          solanaAddress
-                            ? "bg-red-500 hover:bg-red-400 text-white shadow-red-500/20"
-                            : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
-                        )}
-                      >
-                        {solanaAddress ? (
-                          <>
+                          </button>
+                          <button 
+                            className="w-full py-4 rounded-2xl text-sm font-bold transition-all active:scale-95 shadow-lg flex items-center justify-center gap-2 bg-red-500 hover:bg-red-400 text-white shadow-red-500/20"
+                          >
                             <ArrowUpRight className="w-5 h-5" />
                             Sell Token
-                          </>
-                        ) : (
-                          'Connect Wallet'
-                        )}
-                      </button>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <button 
-                      disabled={!walletAddress}
+                      onClick={!walletAddress ? connectWallet : undefined}
                       className={cn(
                         "w-full py-4 rounded-2xl text-sm font-bold transition-all active:scale-95 shadow-lg flex items-center justify-center gap-2",
                         walletAddress
                           ? "bg-blue-500 hover:bg-blue-400 text-white shadow-blue-500/20"
-                          : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                          : "bg-zinc-800 hover:bg-zinc-700 text-white"
                       )}
                     >
                       {walletAddress ? (
@@ -2010,8 +2042,8 @@ export default function App() {
                   
                   <div>
                     <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">Operational Protocol</label>
-                    <div className="grid grid-cols-3 gap-3">
-                      {['trading', 'social', 'monitor'].map(type => (
+                    <div className="grid grid-cols-2 gap-3">
+                      {['trading', 'social', 'monitor', 'whale_watcher'].map(type => (
                         <button
                           key={type}
                           type="button"
@@ -2163,6 +2195,107 @@ export default function App() {
                     </motion.div>
                   )}
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Add Custom Network Modal */}
+      <AnimatePresence>
+        {isAddNetworkModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsAddNetworkModalOpen(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-zinc-900 border border-white/10 rounded-3xl p-8 shadow-2xl overflow-hidden"
+            >
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center">
+                    <Globe className="w-5 h-5 text-emerald-500" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold tracking-tight">Add Custom Network</h2>
+                    <p className="text-xs text-zinc-500">Connect to an EVM-compatible chain</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setIsAddNetworkModalOpen(false)}
+                  className="p-2 bg-white/5 rounded-xl border border-white/10 text-zinc-400 hover:text-white transition-colors"
+                >
+                  <Plus className="w-5 h-5 rotate-45" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Network Name</label>
+                  <input 
+                    type="text" 
+                    value={newNetwork.name || ''}
+                    onChange={(e) => setNewNetwork({ ...newNetwork, name: e.target.value })}
+                    placeholder="e.g. Polygon Mainnet"
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">RPC URL</label>
+                  <input 
+                    type="text" 
+                    value={newNetwork.rpcUrl || ''}
+                    onChange={(e) => setNewNetwork({ ...newNetwork, rpcUrl: e.target.value })}
+                    placeholder="e.g. https://polygon-rpc.com"
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Chain ID</label>
+                    <input 
+                      type="number" 
+                      value={newNetwork.chainId || ''}
+                      onChange={(e) => setNewNetwork({ ...newNetwork, chainId: parseInt(e.target.value) })}
+                      placeholder="e.g. 137"
+                      className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Currency Symbol</label>
+                    <input 
+                      type="text" 
+                      value={newNetwork.symbol || ''}
+                      onChange={(e) => setNewNetwork({ ...newNetwork, symbol: e.target.value })}
+                      placeholder="e.g. MATIC"
+                      className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all"
+                    />
+                  </div>
+                </div>
+
+                <button 
+                  onClick={() => {
+                    if (newNetwork.name && newNetwork.rpcUrl && newNetwork.chainId && newNetwork.symbol) {
+                      setCustomNetworks([...customNetworks, { 
+                        id: Math.random().toString(36).substr(2, 9),
+                        ...newNetwork 
+                      } as CustomNetwork]);
+                      setNewNetwork({});
+                      setIsAddNetworkModalOpen(false);
+                    }
+                  }}
+                  disabled={!newNetwork.name || !newNetwork.rpcUrl || !newNetwork.chainId || !newNetwork.symbol}
+                  className="w-full mt-6 bg-emerald-500 hover:bg-emerald-400 text-black px-4 py-4 rounded-2xl text-sm font-bold transition-all active:scale-95 shadow-lg shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Add Network
+                </button>
               </div>
             </motion.div>
           </div>
@@ -2431,6 +2564,52 @@ export default function App() {
                 >
                   Close
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MetaMask Install Prompt Modal */}
+      <AnimatePresence>
+        {showMetaMaskPrompt && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#111] border border-white/10 rounded-3xl p-8 max-w-sm w-full shadow-2xl relative overflow-hidden"
+            >
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-500 to-amber-500" />
+              
+              <div className="flex flex-col items-center text-center">
+                <div className="w-16 h-16 bg-orange-500/10 rounded-2xl flex items-center justify-center mb-6 border border-orange-500/20">
+                  <Wallet className="w-8 h-8 text-orange-500" />
+                </div>
+                
+                <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">MetaMask Required</h2>
+                <p className="text-zinc-400 text-sm mb-8 leading-relaxed">
+                  To interact with Ethereum networks, you need to install the MetaMask browser extension.
+                </p>
+                
+                <div className="w-full space-y-3">
+                  <a 
+                    href="https://metamask.io/download/" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    onClick={() => setShowMetaMaskPrompt(false)}
+                    className="w-full flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-3.5 rounded-xl text-sm font-bold transition-all active:scale-95 shadow-lg shadow-orange-500/20"
+                  >
+                    Install MetaMask
+                    <ArrowUpRight className="w-4 h-4" />
+                  </a>
+                  <button 
+                    onClick={() => setShowMetaMaskPrompt(false)}
+                    className="w-full bg-white/5 hover:bg-white/10 text-white px-4 py-3.5 rounded-xl text-sm font-bold transition-all active:scale-95 border border-white/10"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>
