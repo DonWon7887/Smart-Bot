@@ -10,20 +10,7 @@ db.exec(`
     name TEXT NOT NULL,
     type TEXT NOT NULL,
     status TEXT DEFAULT 'stopped',
-    frozen BOOLEAN DEFAULT 0,
     config TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY,
-    username TEXT UNIQUE NOT NULL,
-    email TEXT UNIQUE,
-    password TEXT NOT NULL,
-    two_factor_secret TEXT,
-    two_factor_enabled BOOLEAN DEFAULT 0,
-    reset_token TEXT,
-    reset_token_expiry DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -34,9 +21,20 @@ db.exec(`
     confidence REAL,
     reasoning TEXT,
     result TEXT,
+    is_command BOOLEAN DEFAULT 0,
+    command TEXT,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (bot_id) REFERENCES bots (id)
   );
 `);
+
+// Migration for existing databases
+try {
+  db.exec('ALTER TABLE decisions ADD COLUMN is_command BOOLEAN DEFAULT 0');
+} catch (e) {}
+
+try {
+  db.exec('ALTER TABLE decisions ADD COLUMN command TEXT');
+} catch (e) {}
 
 export default db;

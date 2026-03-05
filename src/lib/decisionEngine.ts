@@ -13,16 +13,17 @@ export interface Decision {
 }
 
 export class DecisionEngine {
-  private ai: GoogleGenAI | null = null;
-
-  constructor() {
-    if (process.env.GEMINI_API_KEY) {
-      this.ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  private getAI(): GoogleGenAI | null {
+    const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+    if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
+      return null;
     }
+    return new GoogleGenAI({ apiKey });
   }
 
   async analyzeSituation(botType: string, data: any): Promise<Decision> {
-    if (!this.ai) {
+    const ai = this.getAI();
+    if (!ai) {
       return this.fallbackAnalysis(botType, data);
     }
 
@@ -34,7 +35,7 @@ export class DecisionEngine {
 
         Analyze the situation and provide a decision in JSON format:
         {
-          "action": "string (e.g., buy, sell, hold, alert, ignore)",
+          "action": "string (e.g., buy, sell, hold, alert, ignore, query)",
           "confidence": number (0-1),
           "reasoning": {
             "summary": "string",
@@ -43,11 +44,16 @@ export class DecisionEngine {
           },
           "risk_level": number (0-1)
         }
+
+        If a 'user_command' is provided, prioritize interpreting it. 
+        - If the user is asking for information (e.g., "what is your balance?", "show status"), set action to "query".
+        - If the user provides a command starting with "custom:" (e.g., "custom:scan_network"), interpret the intent and set an appropriate action.
+        - If the command is unknown, set action to "unknown_command" and explain why in the reasoning.
       `;
 
-      const response = await this.ai.models.generateContent({
+      const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: prompt,
+        contents: [{ parts: [{ text: prompt }] }],
         config: {
           responseMimeType: "application/json"
         }
@@ -76,8 +82,18 @@ export class DecisionEngine {
     // Simple rule-based fallback
     let action = "wait";
     let confidence = 0.5;
-    
-    if (botType === 'trading') {
+    let summary = "Fallback rule-based analysis";
+
+    if (data.user_command) {
+      const cmd = data.user_command.toLowerCase();
+      if (cmd.includes('status') || cmd.includes('report') || cmd.includes('balance') || cmd.includes('query')) {
+        action = "query";
+        summary = `Interpreted command: ${data.user_command}`;
+      } else if (cmd.startsWith('custom:')) {
+        action = cmd.split(':')[1] || "custom_action";
+        summary = `Executing custom command: ${data.user_command}`;
+      }
+    } else if (botType === 'trading') {
       const priceChange = data.market_data?.btc_price_change || 0;
       if (priceChange > 2) action = "buy";
       else if (priceChange < -2) action = "sell";
@@ -88,7 +104,7 @@ export class DecisionEngine {
       action,
       confidence,
       reasoning: {
-        summary: "Fallback rule-based analysis",
+        summary,
         reasons: ["AI engine unavailable or error occurred"],
         suggestions: ["Check API configuration"]
       },

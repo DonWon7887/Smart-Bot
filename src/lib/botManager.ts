@@ -1,4 +1,4 @@
-import { TradingBot, SocialBot, MonitorBot, WhaleWatcherBot } from './bots/implementations';
+import { TradingBot, SocialBot, MonitorBot } from './bots/implementations';
 import db from './db';
 import { Server as SocketServer } from 'socket.io';
 
@@ -25,15 +25,17 @@ export class BotManager {
     const onDecision = (data: any) => {
       // Save decision to DB
       const stmt = db.prepare(`
-        INSERT INTO decisions (bot_id, action, confidence, reasoning, result)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO decisions (bot_id, action, confidence, reasoning, result, is_command, command)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
       stmt.run(
         data.bot_id,
         data.decision.action,
         data.decision.confidence,
         JSON.stringify(data.decision.reasoning),
-        JSON.stringify(data.result)
+        JSON.stringify(data.result),
+        data.is_command ? 1 : 0,
+        data.command || null
       );
 
       // Broadcast to clients
@@ -41,23 +43,22 @@ export class BotManager {
         this.io.emit('bot_update', {
           bot_id: data.bot_id,
           decision: data.decision,
-          result: data.result
+          result: data.result,
+          is_command: data.is_command,
+          command: data.command
         });
       }
     };
 
     switch (botData.type) {
       case 'trading':
-        bot = new TradingBot(botData.id, botData.name, config, onDecision, !!botData.frozen);
+        bot = new TradingBot(botData.id, botData.name, config, onDecision);
         break;
       case 'social':
-        bot = new SocialBot(botData.id, botData.name, config, onDecision, !!botData.frozen);
+        bot = new SocialBot(botData.id, botData.name, config, onDecision);
         break;
       case 'monitor':
-        bot = new MonitorBot(botData.id, botData.name, config, onDecision, !!botData.frozen);
-        break;
-      case 'whale_watcher':
-        bot = new WhaleWatcherBot(botData.id, botData.name, config, onDecision, !!botData.frozen);
+        bot = new MonitorBot(botData.id, botData.name, config, onDecision);
         break;
       default:
         return;
@@ -99,48 +100,39 @@ export class BotManager {
     return false;
   }
 
-  async executeCommand(id: string, command: string, args: any) {
+  restartBot(id: string) {
+    const stopped = this.stopBot(id);
+    if (stopped) {
+      return this.startBot(id);
+    }
+    return false;
+  }
+
+  deleteBot(id: string) {
+    this.stopBot(id);
+    this.activeBots.delete(id);
+    db.prepare('DELETE FROM decisions WHERE bot_id = ?').run(id);
+    db.prepare('DELETE FROM bots WHERE id = ?').run(id);
+    return true;
+  }
+
+  async sendCommand(id: string, command: string) {
     const bot = this.activeBots.get(id);
-    if (!bot) return { success: false, message: 'Bot not found' };
-    
-    if (command === 'freeze') {
-      bot.freeze();
-      db.prepare('UPDATE bots SET frozen = 1 WHERE id = ?').run(id);
-      return { success: true, message: 'Bot frozen' };
+    if (bot) {
+      return await bot.handleCommand(command);
     }
-    
-    if (command === 'unfreeze') {
-      bot.unfreeze();
-      db.prepare('UPDATE bots SET frozen = 0 WHERE id = ?').run(id);
-      return { success: true, message: 'Bot unfrozen' };
-    }
-    
-    const result = await bot.handleCommand(command, args);
-    
-    // Broadcast command result
-    if (this.io) {
-      this.io.emit('bot_command_result', {
-        bot_id: id,
-        command,
-        result
-      });
-    }
-    
-    return result;
+    throw new Error('Bot not found');
   }
 
   getBots() {
     const bots = db.prepare('SELECT * FROM bots').all() as any[];
     return bots.map(b => {
       const metrics = this.getBotMetrics(b.id);
-      const botInstance = this.activeBots.get(b.id);
       return {
         ...b,
-        frozen: !!b.frozen,
         config: JSON.parse(b.config),
         metrics,
-        decisions: metrics.last_decisions,
-        state: botInstance ? botInstance.getState() : null
+        decisions: metrics.last_decisions
       };
     });
   }
@@ -151,9 +143,16 @@ export class BotManager {
     return {
       total_decisions: total.count,
       last_decisions: decisions.map((d: any) => ({
-        ...d,
-        reasoning: JSON.parse(d.reasoning),
-        result: JSON.parse(d.result)
+        bot_id: d.bot_id,
+        decision: {
+          action: d.action,
+          confidence: d.confidence,
+          reasoning: JSON.parse(d.reasoning)
+        },
+        result: JSON.parse(d.result),
+        is_command: !!d.is_command,
+        command: d.command,
+        timestamp: d.timestamp
       }))
     };
   }
