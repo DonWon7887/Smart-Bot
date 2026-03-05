@@ -17,6 +17,10 @@ export abstract class BaseBot {
   abstract getBotType(): string;
   abstract collectData(): Promise<any>;
   abstract executeDecision(decision: Decision): Promise<any>;
+  
+  getState(): any {
+    return null;
+  }
 
   async start() {
     if (this.status === 'running') return;
@@ -59,25 +63,7 @@ export abstract class BaseBot {
     this.config = { ...this.config, ...newConfig };
   }
 
-  async handleCommand(command: string) {
-    // Default implementation: use decision engine to interpret command
-    const data = await this.collectData();
-    const decision = await this.decisionEngine.analyzeSituation(this.getBotType(), {
-      ...data,
-      user_command: command
-    });
-    const result = await this.executeDecision(decision);
-
-    const update = {
-      bot_id: this.id,
-      decision,
-      result,
-      timestamp: new Date().toISOString(),
-      is_command: true,
-      command
-    };
-
-    this.onDecision(update);
-    return update;
+  async handleCommand(command: string): Promise<string> {
+    return `Command received: ${command}`;
   }
 }

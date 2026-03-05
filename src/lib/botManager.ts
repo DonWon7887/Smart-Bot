@@ -25,17 +25,15 @@ export class BotManager {
     const onDecision = (data: any) => {
       // Save decision to DB
       const stmt = db.prepare(`
-        INSERT INTO decisions (bot_id, action, confidence, reasoning, result, is_command, command)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO decisions (bot_id, action, confidence, reasoning, result)
+        VALUES (?, ?, ?, ?, ?)
       `);
       stmt.run(
         data.bot_id,
         data.decision.action,
         data.decision.confidence,
         JSON.stringify(data.decision.reasoning),
-        JSON.stringify(data.result),
-        data.is_command ? 1 : 0,
-        data.command || null
+        JSON.stringify(data.result)
       );
 
       // Broadcast to clients
@@ -43,9 +41,7 @@ export class BotManager {
         this.io.emit('bot_update', {
           bot_id: data.bot_id,
           decision: data.decision,
-          result: data.result,
-          is_command: data.is_command,
-          command: data.command
+          result: data.result
         });
       }
     };
@@ -100,9 +96,40 @@ export class BotManager {
     return false;
   }
 
+  async sendCommand(id: string, command: string) {
+    const bot = this.activeBots.get(id);
+    if (bot) {
+      const response = await bot.handleCommand(command);
+      
+      // Log to DB
+      const stmt = db.prepare(`
+        INSERT INTO decisions (bot_id, action, confidence, reasoning, result)
+        VALUES (?, ?, ?, ?, ?)
+      `);
+      stmt.run(
+        id,
+        'command',
+        1.0,
+        JSON.stringify({ command }),
+        JSON.stringify({ response })
+      );
+
+      // Broadcast update
+      if (this.io) {
+        this.io.emit('bot_update', {
+          bot_id: id,
+          decision: { action: 'command', confidence: 1.0, reasoning: { command } },
+          result: { response }
+        });
+      }
+
+      return response;
+    }
+    return "Bot not found";
+  }
+
   restartBot(id: string) {
-    const stopped = this.stopBot(id);
-    if (stopped) {
+    if (this.stopBot(id)) {
       return this.startBot(id);
     }
     return false;
@@ -111,28 +138,22 @@ export class BotManager {
   deleteBot(id: string) {
     this.stopBot(id);
     this.activeBots.delete(id);
-    db.prepare('DELETE FROM decisions WHERE bot_id = ?').run(id);
     db.prepare('DELETE FROM bots WHERE id = ?').run(id);
+    db.prepare('DELETE FROM decisions WHERE bot_id = ?').run(id);
     return true;
-  }
-
-  async sendCommand(id: string, command: string) {
-    const bot = this.activeBots.get(id);
-    if (bot) {
-      return await bot.handleCommand(command);
-    }
-    throw new Error('Bot not found');
   }
 
   getBots() {
     const bots = db.prepare('SELECT * FROM bots').all() as any[];
     return bots.map(b => {
       const metrics = this.getBotMetrics(b.id);
+      const botInstance = this.activeBots.get(b.id);
       return {
         ...b,
         config: JSON.parse(b.config),
         metrics,
-        decisions: metrics.last_decisions
+        decisions: metrics.last_decisions,
+        state: botInstance ? botInstance.getState() : null
       };
     });
   }
@@ -143,16 +164,9 @@ export class BotManager {
     return {
       total_decisions: total.count,
       last_decisions: decisions.map((d: any) => ({
-        bot_id: d.bot_id,
-        decision: {
-          action: d.action,
-          confidence: d.confidence,
-          reasoning: JSON.parse(d.reasoning)
-        },
-        result: JSON.parse(d.result),
-        is_command: !!d.is_command,
-        command: d.command,
-        timestamp: d.timestamp
+        ...d,
+        reasoning: JSON.parse(d.reasoning),
+        result: JSON.parse(d.result)
       }))
     };
   }
