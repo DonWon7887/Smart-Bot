@@ -68,8 +68,8 @@ export class BotManager {
 
   createBot(name: string, type: string, config: any) {
     const id = Math.random().toString(36).substring(2, 10);
-    const stmt = db.prepare('INSERT INTO bots (id, name, type, status, config) VALUES (?, ?, ?, ?, ?)');
-    stmt.run(id, name, type, 'stopped', JSON.stringify(config));
+    const stmt = db.prepare('INSERT INTO bots (id, name, type, config) VALUES (?, ?, ?, ?)');
+    stmt.run(id, name, type, JSON.stringify(config));
     
     const botData = { id, name, type, config: JSON.stringify(config), status: 'stopped' };
     this.initializeBot(botData);
@@ -96,96 +96,13 @@ export class BotManager {
     return false;
   }
 
-  async sendCommand(id: string, command: string) {
-    const bot = this.activeBots.get(id);
-    if (bot) {
-      const response = await bot.handleCommand(command);
-      
-      // Log to DB
-      const stmt = db.prepare(`
-        INSERT INTO decisions (bot_id, action, confidence, reasoning, result)
-        VALUES (?, ?, ?, ?, ?)
-      `);
-      stmt.run(
-        id,
-        'command',
-        1.0,
-        JSON.stringify({ command }),
-        JSON.stringify({ response })
-      );
-
-      // Broadcast update
-      if (this.io) {
-        this.io.emit('bot_update', {
-          bot_id: id,
-          decision: { action: 'command', confidence: 1.0, reasoning: { command } },
-          result: { response }
-        });
-      }
-
-      return response;
-    }
-    return "Bot not found";
-  }
-
-  restartBot(id: string) {
-    if (this.stopBot(id)) {
-      return this.startBot(id);
-    }
-    return false;
-  }
-
-  updateBotConfig(id: string, config: any) {
-    const bot = this.activeBots.get(id);
-    if (bot) {
-      bot.updateConfig(config);
-      db.prepare('UPDATE bots SET config = ? WHERE id = ?').run(JSON.stringify(config), id);
-      return true;
-    }
-    return false;
-  }
-
-  deleteBot(id: string) {
-    this.stopBot(id);
-    this.activeBots.delete(id);
-    db.prepare('DELETE FROM bots WHERE id = ?').run(id);
-    db.prepare('DELETE FROM decisions WHERE bot_id = ?').run(id);
-    return true;
-  }
-
-  private getBotHistory(id: string) {
-    // Group decisions by hour for the last 24 hours
-    const history = db.prepare(`
-      SELECT 
-        strftime('%H:00', timestamp) as timestamp,
-        COUNT(*) as decisions,
-        AVG(CASE WHEN action != 'error' THEN 1 ELSE 0 END) as successRate
-      FROM decisions 
-      WHERE bot_id = ? AND timestamp > datetime('now', '-24 hours')
-      GROUP BY strftime('%H:00', timestamp)
-      ORDER BY timestamp ASC
-    `).all(id) as any[];
-
-    return history.length > 0 ? history : null;
-  }
-
   getBots() {
     const bots = db.prepare('SELECT * FROM bots').all() as any[];
-    return bots.map(b => {
-      const metrics = this.getBotMetrics(b.id);
-      const history = this.getBotHistory(b.id);
-      const botInstance = this.activeBots.get(b.id);
-      return {
-        ...b,
-        config: JSON.parse(b.config),
-        metrics: {
-          ...metrics,
-          history
-        },
-        decisions: metrics.last_decisions,
-        state: botInstance ? botInstance.getState() : null
-      };
-    });
+    return bots.map(b => ({
+      ...b,
+      config: JSON.parse(b.config),
+      metrics: this.getBotMetrics(b.id)
+    }));
   }
 
   private getBotMetrics(id: string) {
@@ -203,7 +120,7 @@ export class BotManager {
 
   getAnalytics() {
     const totalBots = db.prepare('SELECT COUNT(*) as count FROM bots').get() as any;
-    const activeBots = db.prepare("SELECT COUNT(*) as count FROM bots WHERE status = 'running'").get() as any;
+    const activeBots = db.prepare('SELECT COUNT(*) as count FROM bots WHERE status = "running"').get() as any;
     const totalDecisions = db.prepare('SELECT COUNT(*) as count FROM decisions').get() as any;
     
     return {

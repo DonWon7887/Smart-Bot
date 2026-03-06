@@ -28,12 +28,11 @@ export class DecisionEngine {
 
     try {
       const prompt = `
-        You are an advanced AI decision engine for an intelligent bot.
+        You are an AI decision engine for an intelligent bot.
         Bot Type: ${botType}
         Current Data: ${JSON.stringify(data)}
-        
-        Analyze the situation comprehensively. Consider market trends, risk management, and bot objectives.
-        Provide a decision in JSON format:
+
+        Analyze the situation and provide a decision in JSON format:
         {
           "action": "string (e.g., buy, sell, hold, alert, ignore)",
           "confidence": number (0-1),
@@ -47,25 +46,17 @@ export class DecisionEngine {
       `;
 
       const response = await this.ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
+        model: "gemini-2.0-flash-exp",
         contents: [{ parts: [{ text: prompt }] }],
         config: {
           responseMimeType: "application/json"
         }
       });
 
-      const text = (response.text || "{}").trim();
-      const sanitized = text.replace(/```json\n?|```/g, "").trim();
-      
-      if (!sanitized || sanitized === "{}") {
-        return this.fallbackAnalysis(botType, data);
-      }
-
-      const result = JSON.parse(sanitized);
-      
+      const result = JSON.parse(response.text || "{}");
       return {
         ...result,
-        timestamp: new Date().toISOString()
+        timestamp: new Error().stack?.includes('analyzeSituation') ? new Date().toISOString() : new Date().toISOString()
       };
     } catch (error) {
       console.error("AI Decision Error:", error);
