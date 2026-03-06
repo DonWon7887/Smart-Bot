@@ -26,6 +26,18 @@ db.exec(`
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (bot_id) REFERENCES bots (id)
   );
+
+  CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    username TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    two_factor_enabled BOOLEAN DEFAULT 0,
+    two_factor_secret TEXT,
+    reset_token TEXT,
+    reset_token_expiry TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 // Migration for existing databases

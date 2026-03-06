@@ -31,21 +31,42 @@ export abstract class BaseBot {
       
       try {
         const data = await this.collectData();
+        
+        // Final check before AI analysis
+        if (this.status !== 'running') return;
+        
         const decision = await this.decisionEngine.analyzeSituation(this.getBotType(), data);
+        
+        // Final check before execution
+        if (this.status !== 'running') return;
+        
         const result = await this.executeDecision(decision);
+        
+        // Final check before reporting
+        if (this.status !== 'running') return;
         
         this.onDecision({
           bot_id: this.id,
           decision,
           result,
+          status: this.status,
           timestamp: new Date().toISOString()
         });
       } catch (error) {
-        console.error(`Bot ${this.name} error:`, error);
+        console.error(`Bot ${this.name} [${this.id}] error:`, error);
+        this.onDecision({
+          bot_id: this.id,
+          decision: { action: 'error', confidence: 0, reasoning: { summary: 'Internal error occurred' } },
+          result: { success: false, error: (error as Error).message },
+          status: this.status,
+          timestamp: new Date().toISOString()
+        });
       }
 
-      const interval = (this.config.interval || 60) * 1000;
-      this.intervalId = setTimeout(runLoop, interval);
+      if (this.status === 'running') {
+        const interval = (this.config.interval || 60) * 1000;
+        this.intervalId = setTimeout(runLoop, interval);
+      }
     };
 
     runLoop();

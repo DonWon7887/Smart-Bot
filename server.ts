@@ -142,6 +142,11 @@ async function startServer() {
     res.json({ response });
   });
 
+  app.post("/api/bots/:id/config", authenticate, (req, res) => {
+    const success = botManager.updateBotConfig(req.params.id, req.body.config);
+    res.json({ success });
+  });
+
   app.post("/api/bots/:id/restart", authenticate, (req, res) => {
     const success = botManager.restartBot(req.params.id);
     res.json({ success });

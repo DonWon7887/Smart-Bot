@@ -117,32 +117,44 @@ export default function App() {
     setSocket(newSocket);
 
     newSocket.on('bot_update', (data) => {
-      setBots(prev => prev.map(bot => {
-        if (bot.id === data.bot_id) {
-          // Update state based on bot type and result
-          let newState = bot.state;
-          if (bot.type === 'trading' && data.result?.portfolio) {
-            newState = { 
-              portfolio: data.result.portfolio,
-              current_price: data.result.market_data?.btc_price || bot.state?.current_price 
-            };
-          } else if (data.result) {
-            // For other bots, the result might contain the new state
-            newState = { ...bot.state, ...data.result };
-          }
-
-          return {
-            ...bot,
-            state: newState,
-            metrics: {
-              ...bot.metrics,
-              total_decisions: bot.metrics.total_decisions + 1,
-              last_decisions: [data, ...bot.metrics.last_decisions].slice(0, 10)
+      setBots(prev => {
+        const updatedBots = prev.map(bot => {
+          if (bot.id === data.bot_id) {
+            // Update state based on bot type and result
+            let newState = bot.state;
+            if (bot.type === 'trading' && data.result?.portfolio) {
+              newState = data.result.portfolio;
+            } else if (data.result?.state) {
+              newState = data.result.state;
+            } else if (data.result) {
+              newState = { ...bot.state, ...data.result };
             }
-          };
-        }
-        return bot;
-      }));
+
+            const updatedBot = {
+              ...bot,
+              status: data.status || bot.status,
+              state: newState,
+              metrics: {
+                ...bot.metrics,
+                total_decisions: bot.metrics.total_decisions + 1,
+                last_decisions: [data, ...bot.metrics.last_decisions].slice(0, 10)
+              }
+            };
+
+            // Sync detailsBot if it's the one being updated
+            setDetailsBot(current => {
+              if (current?.id === data.bot_id) {
+                return updatedBot;
+              }
+              return current;
+            });
+
+            return updatedBot;
+          }
+          return bot;
+        });
+        return updatedBots;
+      });
       fetchAnalytics();
     });
 
@@ -280,18 +292,26 @@ export default function App() {
   };
 
   const fetchBots = async () => {
-    const res = await fetch('/api/bots');
-    if (res.ok) {
-      const data = await res.json();
-      setBots(data);
+    try {
+      const res = await fetch('/api/bots');
+      if (res.ok) {
+        const data = await res.json();
+        setBots(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch bots:', error);
     }
   };
 
   const fetchAnalytics = async () => {
-    const res = await fetch('/api/analytics');
-    if (res.ok) {
-      const data = await res.json();
-      setAnalytics(data);
+    try {
+      const res = await fetch('/api/analytics');
+      if (res.ok) {
+        const data = await res.json();
+        setAnalytics(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch analytics:', error);
     }
   };
 
@@ -304,23 +324,48 @@ export default function App() {
       const data = await res.json();
       setBots(data);
       
-      if (action === 'start') {
-        const bot = data.find((b: any) => b.id === id);
-        if (bot) {
-          setDetailsBot(bot);
-        }
+      const bot = data.find((b: any) => b.id === id);
+      if (bot && detailsBot?.id === id) {
+        setDetailsBot(bot);
       }
     }
   };
 
   const restartBot = async (id: string) => {
     await fetch(`/api/bots/${id}/restart`, { method: 'POST' });
-    fetchBots();
+    const res = await fetch('/api/bots');
+    if (res.ok) {
+      const data = await res.json();
+      setBots(data);
+      const updatedBot = data.find((b: any) => b.id === id);
+      if (updatedBot) {
+        setDetailsBot(updatedBot);
+      }
+    }
   };
 
   const deleteBot = async (id: string) => {
     await fetch(`/api/bots/${id}`, { method: 'DELETE' });
+    setDetailsBot(null);
     fetchBots();
+  };
+
+  const updateBotConfig = async (id: string, config: any) => {
+    await fetch(`/api/bots/${id}/config`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ config })
+    });
+    
+    const res = await fetch('/api/bots');
+    if (res.ok) {
+      const data = await res.json();
+      setBots(data);
+      const updatedBot = data.find((b: any) => b.id === id);
+      if (updatedBot) {
+        setDetailsBot(updatedBot);
+      }
+    }
   };
 
   const createBot = async (e: React.FormEvent) => {
@@ -341,7 +386,7 @@ export default function App() {
 
   const connectWallet = async () => {
     if (typeof window.ethereum === 'undefined') {
-      alert('Please install MetaMask or another crypto wallet extension.');
+      setLoginError('Please install MetaMask or another crypto wallet extension.');
       return;
     }
 
@@ -767,7 +812,7 @@ export default function App() {
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               {[
-                { label: 'Active Bots', value: `${analytics?.active_bots || 0}/${analytics?.total_bots || 0}`, icon: Activity, color: 'text-emerald-500' },
+                { label: 'Bot Status', value: `${analytics?.active_bots || 0} Running / ${(analytics?.total_bots || 0) - (analytics?.active_bots || 0)} Stopped`, icon: Activity, color: 'text-emerald-500' },
                 { label: 'Total Decisions', value: analytics?.total_decisions || 0, icon: Cpu, color: 'text-blue-500' },
                 { label: 'Wallet Balance', value: walletAddress ? `${parseFloat(walletBalance || '0').toFixed(4)} ETH` : 'Connect Wallet', icon: Wallet, color: 'text-orange-500', action: !walletAddress ? connectWallet : () => setActiveTab('wallet') },
                 { label: 'System Uptime', value: '99.9%', icon: RefreshCw, color: 'text-purple-500' }
@@ -828,6 +873,7 @@ export default function App() {
                 onRestart={restartBot}
                 onDelete={deleteBot}
                 onSendCommand={sendBotCommand}
+                onUpdateConfig={updateBotConfig}
               />
             )}
 
@@ -878,10 +924,10 @@ export default function App() {
                               <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">{bot.type}</span>
                               <span className="w-1 h-1 rounded-full bg-zinc-700" />
                               <div className={cn(
-                                "flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-widest transition-colors",
+                                "flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-bold uppercase tracking-widest transition-colors",
                                 bot.status === 'running' 
                                   ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" 
-                                  : "bg-zinc-500/10 border-zinc-500/20 text-zinc-400"
+                                  : "bg-red-500/10 border-red-500/20 text-red-500"
                               )}>
                                 <span className={cn(
                                   "relative flex h-1.5 w-1.5",
@@ -889,11 +935,11 @@ export default function App() {
                                 )}>
                                   <span className={cn(
                                     "absolute inline-flex h-full w-full rounded-full opacity-75",
-                                    bot.status === 'running' ? "animate-ping bg-emerald-400" : "bg-zinc-500"
+                                    bot.status === 'running' ? "animate-ping bg-emerald-400" : "bg-red-500"
                                   )}></span>
                                   <span className={cn(
                                     "relative inline-flex rounded-full h-1.5 w-1.5",
-                                    bot.status === 'running' ? "bg-emerald-500" : "bg-zinc-500"
+                                    bot.status === 'running' ? "bg-emerald-500" : "bg-red-500"
                                   )}></span>
                                 </span>
                                 {bot.status}

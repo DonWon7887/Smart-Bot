@@ -1,6 +1,5 @@
-import { createRoot } from 'react-dom/client';
-
 // Fix for "Cannot set property fetch of #<Window> which has only a getter"
+// This must be at the absolute top before any other imports
 if (typeof window !== 'undefined') {
   try {
     const originalFetch = window.fetch;
@@ -14,10 +13,22 @@ if (typeof window !== 'undefined') {
       });
     }
   } catch (e) {
-    // Ignore errors if property is not configurable
+    // If we can't make it writable, try to define a setter that ignores assignments
+    try {
+      const originalFetch = window.fetch;
+      Object.defineProperty(window, 'fetch', {
+        get: () => originalFetch,
+        set: () => { console.warn('Attempt to overwrite window.fetch ignored'); },
+        configurable: true,
+        enumerable: true
+      });
+    } catch (e2) {
+      // If it's not configurable, we can't do anything to window.fetch
+    }
   }
 }
 
+import { createRoot } from 'react-dom/client';
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import { PhantomWalletAdapter } from '@solana/wallet-adapter-wallets';

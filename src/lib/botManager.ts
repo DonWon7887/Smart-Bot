@@ -135,6 +135,16 @@ export class BotManager {
     return false;
   }
 
+  updateBotConfig(id: string, config: any) {
+    const bot = this.activeBots.get(id);
+    if (bot) {
+      bot.updateConfig(config);
+      db.prepare('UPDATE bots SET config = ? WHERE id = ?').run(JSON.stringify(config), id);
+      return true;
+    }
+    return false;
+  }
+
   deleteBot(id: string) {
     this.stopBot(id);
     this.activeBots.delete(id);
@@ -143,15 +153,35 @@ export class BotManager {
     return true;
   }
 
+  private getBotHistory(id: string) {
+    // Group decisions by hour for the last 24 hours
+    const history = db.prepare(`
+      SELECT 
+        strftime('%H:00', timestamp) as timestamp,
+        COUNT(*) as decisions,
+        AVG(CASE WHEN action != 'error' THEN 1 ELSE 0 END) as successRate
+      FROM decisions 
+      WHERE bot_id = ? AND timestamp > datetime('now', '-24 hours')
+      GROUP BY strftime('%H:00', timestamp)
+      ORDER BY timestamp ASC
+    `).all(id) as any[];
+
+    return history.length > 0 ? history : null;
+  }
+
   getBots() {
     const bots = db.prepare('SELECT * FROM bots').all() as any[];
     return bots.map(b => {
       const metrics = this.getBotMetrics(b.id);
+      const history = this.getBotHistory(b.id);
       const botInstance = this.activeBots.get(b.id);
       return {
         ...b,
         config: JSON.parse(b.config),
-        metrics,
+        metrics: {
+          ...metrics,
+          history
+        },
         decisions: metrics.last_decisions,
         state: botInstance ? botInstance.getState() : null
       };

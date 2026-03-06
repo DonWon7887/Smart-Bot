@@ -6,6 +6,35 @@
     <title>AI Trading Bot Dashboard</title>
     <meta name="description" content="Advanced AI Trading Bot Management Dashboard" />
     <meta name="theme-color" content="#000000" />
+    <script>
+      // Fix for "Cannot set property fetch of #<Window> which has only a getter"
+      // This must be as early as possible
+      (function() {
+        if (typeof window !== 'undefined') {
+          try {
+            var f = window.fetch;
+            if (f) {
+              Object.defineProperty(window, 'fetch', {
+                value: f,
+                writable: true,
+                configurable: true,
+                enumerable: true
+              });
+            }
+          } catch (e) {
+            try {
+              var f2 = window.fetch;
+              Object.defineProperty(window, 'fetch', {
+                get: function() { return f2; },
+                set: function() { console.warn('Attempt to overwrite window.fetch ignored'); },
+                configurable: true,
+                enumerable: true
+              });
+            } catch (e2) {}
+          }
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
