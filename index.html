@@ -2,8 +2,61 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Google AI Studio App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>AI Trading Bot Dashboard</title>
+    <meta name="description" content="Advanced AI Trading Bot Management Dashboard" />
+    <meta name="theme-color" content="#000000" />
+    <script>
+      // Fix for "Cannot set property fetch of #<Window> which has only a getter"
+      // This intercepts assignments to 'fetch' on the global object
+      (function() {
+        if (typeof window !== 'undefined') {
+          try {
+            // 1. Try to make window.fetch writable
+            var originalFetch = window.fetch;
+            Object.defineProperty(window, 'fetch', {
+              value: originalFetch,
+              writable: true,
+              configurable: true,
+              enumerable: true
+            });
+          } catch (e) {
+            // 2. Fallback: If window.fetch is not configurable, try to provide a dummy setter
+            try {
+              var f = window.fetch;
+              Object.defineProperty(window, 'fetch', {
+                get: function() { return f; },
+                set: function() { console.warn('Blocked attempt to overwrite window.fetch'); },
+                configurable: true,
+                enumerable: true
+              });
+            } catch (e2) {
+              // 3. Last resort: If we can't modify window.fetch at all, 
+              // intercept assignments via a 'global' proxy if libraries use 'global.fetch'
+              var globalProxy = new Proxy(window, {
+                get: function(target, prop) {
+                  return target[prop];
+                },
+                set: function(target, prop, value) {
+                  if (prop === 'fetch') {
+                    console.warn('Blocked attempt to overwrite fetch via global proxy');
+                    return true; 
+                  }
+                  try {
+                    target[prop] = value;
+                  } catch (err) {
+                    console.warn('Failed to set ' + prop + ' on window:', err);
+                  }
+                  return true;
+                }
+              });
+              window.global = globalProxy;
+              window.globalThis = globalProxy;
+            }
+          }
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
