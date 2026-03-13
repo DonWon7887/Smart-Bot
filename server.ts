@@ -2,6 +2,8 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import authRouter from "./server/auth";
+import { WebSocketServer, WebSocket } from "ws";
+import { createServer } from "http";
 
 // Mock data for initial bots
 interface Bot {
@@ -34,9 +36,14 @@ interface Bot {
     mentions?: string[];
     summary?: string;
     topPosts?: { author: string; text: string; engagement: number }[];
+    query?: string;
+    type?: 'social' | 'webpage' | 'wallet' | 'keyword' | 'hashtag' | 'account';
+    subject?: string;
+    requestedContext?: string;
   }[];
   connectedSocials: string[];
   socialCredentials?: { platform: string; email?: string; phone?: string; password?: string }[];
+  monitoringTargets?: { type: string; value: string; label: string; addedAt: string }[];
   description?: string;
   strategyDetails?: {
     parameters: Record<string, string | number>;
@@ -50,105 +57,105 @@ interface Bot {
   };
 }
 
-let bots: Bot[] = [
-  {
-    id: "bot-1",
-    name: "Alpha Momentum",
-    strategy: "Momentum",
-    riskLevel: "Medium",
-    maxDrawdown: 15,
-    leverage: 2,
-    tradingPair: "BTC/USDT",
-    status: "Active",
-    performance: [
-      { date: "2026-03-01", value: 1000 },
-      { date: "2026-03-02", value: 1050 },
-      { date: "2026-03-03", value: 1030 },
-      { date: "2026-03-04", value: 1100 },
-      { date: "2026-03-05", value: 1150 },
-      { date: "2026-03-06", value: 1120 },
-    ],
-    terminalHistory: [
-      { type: 'output', content: "System initialized. Social modules standby.", timestamp: new Date().toISOString() }
-    ],
-    socialData: [
-      {
-        id: "s1",
-        platform: "X",
-        content: "Bitcoin showing strong momentum above 60k. Bulls are in control.",
-        timestamp: new Date().toISOString(),
-        sentiment: "Positive",
-        author: "CryptoWhale",
-        authorAvatar: "https://picsum.photos/seed/whale/100/100",
-        metrics: {
-          likes: 1200,
-          shares: 250,
-          comments: 50
-        },
-        engagement: 1500,
-        hashtags: ["#BTC", "#Crypto", "#Bullish"],
-        mentions: ["@MicroStrategy"],
-        summary: "Market sentiment is highly positive as BTC breaks resistance."
-      }
-    ],
-    connectedSocials: ["twitter"],
-    strategyDetails: {
-      parameters: { "RSI Period": 14, "Overbought": 70, "Oversold": 30, "MA Fast": 20, "MA Slow": 50 },
-      backtesting: { winRate: 64.5, profitFactor: 1.8, sharpeRatio: 2.1, totalTrades: 450 },
-      optimizationHistory: [
-        { date: "2026-02-15", change: "Adjusted RSI threshold from 75 to 70" },
-        { date: "2026-01-20", change: "Increased leverage from 1x to 2x" }
-      ]
-    }
-  },
-  {
-    id: "bot-2",
-    name: "Beta Arbitrage",
-    strategy: "Arbitrage",
-    riskLevel: "Low",
-    maxDrawdown: 5,
-    leverage: 1,
-    tradingPair: "ETH/USDT",
-    status: "Paused",
-    performance: [
-      { date: "2026-03-01", value: 2000 },
-      { date: "2026-03-02", value: 2010 },
-      { date: "2026-03-03", value: 2015 },
-      { date: "2026-03-04", value: 2020 },
-      { date: "2026-03-05", value: 2025 },
-      { date: "2026-03-06", value: 2030 },
-    ],
-    terminalHistory: [
-      { type: 'output', content: "System initialized. Social modules standby.", timestamp: new Date().toISOString() }
-    ],
-    socialData: [],
-    connectedSocials: [],
-    strategyDetails: {
-      parameters: { "Spread Threshold": 0.5, "Min Volume": 10000 },
-      backtesting: { winRate: 88.2, profitFactor: 2.5, sharpeRatio: 3.2, totalTrades: 1200 },
-      optimizationHistory: [
-        { date: "2026-03-01", change: "Added liquidity provider filter" }
-      ]
-    }
-  }
-];
+let bots: Bot[] = [];
 
 async function startServer() {
   const app = express();
+  const server = createServer(app);
+  const wss = new WebSocketServer({ server });
   const PORT = 3000;
 
   app.use(express.json());
   app.use(authRouter);
 
+  // WebSocket handling
+  const clients = new Set<WebSocket>();
+  wss.on("connection", (ws) => {
+    clients.add(ws);
+    ws.on("close", () => clients.delete(ws));
+  });
+
+  const broadcast = (data: any) => {
+    const message = JSON.stringify(data);
+    clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(message);
+      }
+    });
+  };
+
+  // Simulate real-time social activity
+  setInterval(() => {
+    const activeBots = bots.filter(b => b.status === 'Active');
+    if (activeBots.length === 0) return;
+
+    const bot = activeBots[Math.floor(Math.random() * activeBots.length)];
+    const platforms = ["X", "TikTok", "Instagram", "Facebook"];
+    const platform = platforms[Math.floor(Math.random() * platforms.length)];
+    const authors = ["AlphaTrader", "MarketWhale", "BullishBot", "CryptoExpert", "TrendHunter"];
+    const author = authors[Math.floor(Math.random() * authors.length)];
+    const sentiments: ('Positive' | 'Negative' | 'Neutral')[] = ["Positive", "Negative", "Neutral"];
+    const sentiment = sentiments[Math.floor(Math.random() * sentiments.length)];
+    
+    const content = `Real-time update for ${bot.tradingPair}: Market showing ${sentiment.toLowerCase()} signals on ${platform}.`;
+    const newSocialItem = {
+      id: Math.random().toString(36).substr(2, 9),
+      platform,
+      content,
+      timestamp: new Date().toISOString(),
+      sentiment,
+      author,
+      authorAvatar: `https://picsum.photos/seed/${author}/100/100`,
+      metrics: {
+        likes: Math.floor(Math.random() * 500),
+        shares: Math.floor(Math.random() * 100),
+        comments: Math.floor(Math.random() * 50)
+      },
+      engagement: Math.floor(Math.random() * 1000),
+      url: `https://${platform.toLowerCase()}.com/post/${Math.random().toString(36).substr(2, 9)}`,
+      hashtags: [bot.tradingPair.replace('/', ''), '#MarketUpdate'],
+      mentions: ['@BotIntelligence']
+    };
+
+    bot.socialData = [newSocialItem];
+
+    broadcast({
+      type: 'NOTIFICATION',
+      payload: {
+        id: newSocialItem.id,
+        title: `New Social Activity: ${bot.name}`,
+        message: content,
+        platform,
+        url: newSocialItem.url,
+        timestamp: newSocialItem.timestamp,
+        botId: bot.id
+      }
+    });
+  }, 15000); // Every 15 seconds
+
+  // Helper to sanitize bots before sending to client
+  const sanitizeBot = (bot: Bot) => {
+    const sanitized = { ...bot };
+    if (sanitized.socialCredentials) {
+      sanitized.socialCredentials = sanitized.socialCredentials.map(c => ({
+        platform: c.platform,
+        email: c.email,
+        phone: c.phone
+        // Intentionally omitting password for security
+      }));
+    }
+    return sanitized;
+  };
+
   // API Routes
   app.get("/api/bots", (req, res) => {
-    res.json(bots);
+    res.json(bots.map(sanitizeBot));
   });
 
   app.get("/api/bots/:id", (req, res) => {
     const bot = bots.find(b => b.id === req.params.id);
     if (bot) {
-      res.json(bot);
+      res.json(sanitizeBot(bot));
     } else {
       res.status(404).json({ error: "Bot not found" });
     }
@@ -205,14 +212,15 @@ async function startServer() {
 
   app.post("/api/bots/:id/search/:platform", (req, res) => {
     const { id, platform } = req.params;
-    const { query } = req.body;
+    const { query, generatedSummary, retrievedPosts, type } = req.body;
     const bot = bots.find(b => b.id === id);
     
     if (!bot) {
       return res.status(404).json({ error: "Bot not found" });
     }
 
-    if (!bot.connectedSocials?.includes(platform)) {
+    // Only check for connected socials if it's a social search and not a generic monitoring scan
+    if (type === 'social' && !bot.connectedSocials?.includes(platform)) {
       return res.status(400).json({ error: "Platform not connected" });
     }
 
@@ -234,34 +242,88 @@ async function startServer() {
       id: Math.random().toString(36).substr(2, 9),
       platform,
       query: queryStr,
+      type: type || 'social',
+      subject: queryStr,
+      requestedContext: `Monitoring request for ${type || 'social'} target: ${queryStr}`,
       author,
       authorAvatar: `https://picsum.photos/seed/${author}/100/100`,
-      content: `Deep analysis on ${platform} for "${queryStr}" using account ${credentials?.email || credentials?.phone || "anonymous"}.`,
+      content: generatedSummary || `Deep analysis on ${platform} for "${queryStr}" using account ${credentials?.email || credentials?.phone || "anonymous"}.`,
       sentiment,
       metrics: { likes, shares, comments },
       engagement,
       url: `https://${platform.toLowerCase()}.com/search?q=${encodeURIComponent(queryStr)}`,
       hashtags: [`#${queryStr.replace(/\s+/g, '')}`, '#MarketTrends', '#BotIntelligence'],
       mentions: ['@MarketLeader', '@CryptoWhale'],
-      summary: `The overall sentiment for ${queryStr} is currently ${Math.random() > 0.5 ? 'bullish' : 'bearish'}. We observed a significant spike in engagement over the last 24 hours, primarily driven by discussions around recent volatility.`,
-      topPosts: [
-        { author: 'AlphaTrader', text: `Just saw some interesting movement in ${queryStr}. Might be a good time to look closer.`, engagement: 1200 },
-        { author: 'MarketWatcher', text: `The latest data for ${queryStr} suggests a strong support level forming.`, engagement: 850 }
-      ],
+      summary: generatedSummary || `The overall sentiment for ${queryStr} is currently ${Math.random() > 0.5 ? 'bullish' : 'bearish'}. We observed a significant spike in engagement over the last 24 hours, primarily driven by discussions around recent volatility.`,
+      topPosts: retrievedPosts ? retrievedPosts.map((p: any) => ({ author: p.author, text: p.content, engagement: p.engagement })) : Array.from({ length: 10 }).map((_, i) => ({
+        author: `User_${Math.floor(Math.random() * 1000)}`,
+        text: `This is a simulated search result for ${queryStr} on ${platform}.`,
+        engagement: Math.floor(Math.random() * 5000)
+      })),
       timestamp
     };
     
     if (!bot.socialData) bot.socialData = [];
-    bot.socialData.unshift(newSocialItem);
+    bot.socialData = [newSocialItem, ...bot.socialData].slice(0, 50);
 
     const logEntry = { 
       type: 'output' as const, 
-      content: `Keyword search performed on ${platform} for: "${query || "General search"}".`, 
+      content: `Intelligence gathering performed for ${type || 'social'} target: "${queryStr}" on ${platform}.`, 
       timestamp 
     };
     if (!bot.terminalHistory) bot.terminalHistory = [];
     bot.terminalHistory.push(logEntry);
 
+    broadcast({
+      type: 'NOTIFICATION',
+      payload: {
+        id: newSocialItem.id,
+        title: `Intelligence Gathered: ${bot.name}`,
+        message: `New data for ${type || 'social'} target "${queryStr}" on ${platform}.`,
+        platform,
+        url: newSocialItem.url,
+        timestamp: newSocialItem.timestamp,
+        botId: bot.id
+      }
+    });
+
+    res.json(bot);
+  });
+
+  app.post("/api/bots/:id/monitoring-targets", (req, res) => {
+    const { id } = req.params;
+    const { type, value, label } = req.body;
+    const bot = bots.find(b => b.id === id);
+    
+    if (!bot) {
+      return res.status(404).json({ error: "Bot not found" });
+    }
+
+    if (!bot.monitoringTargets) bot.monitoringTargets = [];
+    
+    const newTarget = {
+      type,
+      value,
+      label,
+      addedAt: new Date().toISOString()
+    };
+
+    bot.monitoringTargets.push(newTarget);
+    res.json(bot);
+  });
+
+  app.delete("/api/bots/:id/monitoring-targets/:index", (req, res) => {
+    const { id, index } = req.params;
+    const bot = bots.find(b => b.id === id);
+    
+    if (!bot) {
+      return res.status(404).json({ error: "Bot not found" });
+    }
+
+    if (bot.monitoringTargets) {
+      bot.monitoringTargets.splice(parseInt(index), 1);
+    }
+    
     res.json(bot);
   });
 
@@ -308,16 +370,29 @@ async function startServer() {
         hashtags: [trend, '#Trending', '#MarketWatch'],
         mentions: ['@TrendBot', '@MarketAnalyst'],
         summary: `The trend ${trend} is gaining significant traction on ${platform}. Sentiment is mostly ${sentiment.toLowerCase()}, with users discussing potential market implications.`,
-        topPosts: [
-          { author: 'TrendSetter', text: `Keep an eye on ${trend}. Something big is coming.`, engagement: 2100 },
-          { author: 'DataGeek', text: `Analyzing ${trend} metrics... the growth is exponential.`, engagement: 1500 }
-        ],
+        topPosts: Array.from({ length: 10 }).map((_, i) => ({
+          author: `User_${Math.floor(Math.random() * 1000)}`,
+          text: `This is a simulated intelligence post about ${trend} on ${platform}.`,
+          engagement: Math.floor(Math.random() * 5000)
+        })),
         timestamp: new Date().toISOString()
       };
       
-      if (!bot.socialData) bot.socialData = [];
-      bot.socialData.unshift(newSocialItem);
+      bot.socialData = [newSocialItem];
       response = `[${timestamp}] Social data gathered from ${platform}. Trend: ${trend}. Sentiment: ${sentiment}. Added to feed.`;
+
+      broadcast({
+        type: 'NOTIFICATION',
+        payload: {
+          id: newSocialItem.id,
+          title: `Intelligence Gathered: ${bot.name}`,
+          message: `New trend detected: ${trend} on ${platform}.`,
+          platform,
+          url: newSocialItem.url,
+          timestamp: newSocialItem.timestamp,
+          botId: bot.id
+        }
+      });
     } else if (command.startsWith("custom:")) {
       response = `[${timestamp}] Executed custom instruction: ${command.replace("custom:", "")}. Operation successful.`;
     } else {
@@ -341,7 +416,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
   });
 }
